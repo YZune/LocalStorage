@@ -17,12 +17,16 @@ import android.support.v7.app.AppCompatActivity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.Button
-import android.widget.ImageView
-import android.widget.TextView
-import android.widget.ViewSwitcher
+import android.widget.*
 import androidx.core.database.getString
 import androidx.core.view.isVisible
+import androidx.core.widget.toast
+import java.io.File
+import android.text.TextUtils
+import android.provider.MediaStore
+import java.io.FileNotFoundException
+import java.io.FileOutputStream
+import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
     companion object {
@@ -102,6 +106,8 @@ class MainActivity : AppCompatActivity() {
         returnedDetailsSwitcher = findViewById(R.id.returned_details_switcher)
         returnedChildren = findViewById(R.id.returned_children)
         val bottomBanner = findViewById<View>(R.id.bottom_banner)
+//        bottomBanner.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+//                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
         if (bottomBanner is Button) {
             bottomBanner.setOnClickListener {
                 DonateDialogFragment().show(supportFragmentManager, "donate")
@@ -188,6 +194,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleOpenDocument(documentUri: Uri) {
         returnedDetailsSwitcher.displayedChild = 0
+        try {
+            contentResolver.openFileDescriptor(documentUri, "w")?.use {
+                // use{} lets the document provider know you're done by automatically closing the stream
+                // 会ANR
+                FileOutputStream(it.fileDescriptor).use { out ->
+                    repeat(5) {
+                        out.write(
+                                ("Overwritten by MyCloud at ${System.currentTimeMillis()}\n").toByteArray()
+                        )
+                    }
+                }
+            }
+        } catch (e: FileNotFoundException) {
+            e.printStackTrace()
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
         contentResolver.query(documentUri, null, null, null, null)?.use { cursor ->
             // moveToFirst() returns false if the cursor has 0 rows.  Very handy for
             // "if there's anything to look at, look at it" conditionals.
@@ -250,5 +273,43 @@ class MainActivity : AppCompatActivity() {
             }
             returnedChildren.text = children
         }
+    }
+
+    fun getFileFromUri(uri: Uri): File? {
+        if (uri == null) {
+            return null
+        }
+        return when (uri.scheme) {
+            "content" -> getFileFromContentUri(uri)
+            "file" -> File(uri.path!!)
+            else -> null
+        }
+    }
+
+    private fun getFileFromContentUri(contentUri: Uri?): File? {
+        if (contentUri == null) {
+            return null
+        }
+        var file: File? = null
+        var filePath: String? = null
+        val fileName: String
+        val filePathColumn = arrayOf(MediaStore.MediaColumns.DATA, MediaStore.MediaColumns.DISPLAY_NAME)
+        val cursor = contentResolver.query(contentUri, filePathColumn, null, null, null)
+        if (cursor != null) {
+            cursor.moveToFirst()
+            filePath = cursor.getString(cursor.getColumnIndex(filePathColumn[0]))
+//            try {
+//                filePath = cursor.getString(cursor.getColumnIndex(filePathColumn[0]))
+//            } catch (e: Exception) {
+//                e.toString()
+//            }
+            fileName = cursor.getString(cursor.getColumnIndex(filePathColumn[1]))
+            cursor.close()
+            if (!TextUtils.isEmpty(filePath)) {
+                file = File(filePath)
+            }
+            toast(filePath!!)
+        }
+        return file
     }
 }

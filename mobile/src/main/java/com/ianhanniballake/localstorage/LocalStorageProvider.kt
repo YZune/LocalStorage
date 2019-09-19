@@ -76,6 +76,21 @@ class LocalStorageProvider : DocumentsProvider() {
     }
 
     @SuppressLint("InlinedApi")
+    private fun addPath(cursor: MatrixCursor, path: String, name: String, icon: Int) {
+        if (!File(path).exists()) return
+        val row = cursor.newRow()
+        // These columns are required
+        row.add(Root.COLUMN_ROOT_ID, path)
+        row.add(Root.COLUMN_DOCUMENT_ID, path)
+        row.add(Root.COLUMN_TITLE, name)
+        row.add(Root.COLUMN_FLAGS, Root.FLAG_LOCAL_ONLY or Root.FLAG_SUPPORTS_CREATE or Root.FLAG_SUPPORTS_IS_CHILD)
+        row.add(Root.COLUMN_ICON, icon)
+        // These columns are optional
+        row.add(Root.COLUMN_SUMMARY, path)
+        row.add(Root.COLUMN_AVAILABLE_BYTES, StatFs(path).availableBytes)
+    }
+
+    @SuppressLint("InlinedApi")
     override fun queryRoots(projection: Array<String>?): Cursor? {
         val context = context ?: return null
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -85,20 +100,18 @@ class LocalStorageProvider : DocumentsProvider() {
         // Create a cursor with either the requested fields, or the default projection if "projection" is null.
         val result = MatrixCursor(projection ?: DEFAULT_ROOT_PROJECTION)
         // Add Home directory
-        val homeDir = Environment.getExternalStorageDirectory()
+        var basePath = Environment.getExternalStorageDirectory().absolutePath
+        if (!basePath.endsWith(File.separator)) {
+            basePath = "$basePath/"
+        }
+        val qqPath = "${basePath}tencent/QQfile_recv/"
+        val timPath = "${basePath}tencent/TIMfile_recv/"
+        val wechatPath = "${basePath}tencent/micromsg/Download/"
         if (Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED) {
-            val row = result.newRow()
-            // These columns are required
-            row.add(Root.COLUMN_ROOT_ID, homeDir.absolutePath)
-            row.add(Root.COLUMN_DOCUMENT_ID, homeDir.absolutePath)
-            row.add(Root.COLUMN_TITLE, context.getString(R.string.home))
-            row.add(Root.COLUMN_FLAGS, Root.FLAG_LOCAL_ONLY or Root.FLAG_SUPPORTS_CREATE or Root.FLAG_SUPPORTS_IS_CHILD)
-            row.add(Root.COLUMN_ICON, R.mipmap.ic_launcher)
-            // These columns are optional
-            row.add(Root.COLUMN_SUMMARY, homeDir.absolutePath)
-            row.add(Root.COLUMN_AVAILABLE_BYTES, StatFs(homeDir.absolutePath).availableBytes)
-            // Root.COLUMN_MIME_TYPE is another optional column and useful if you have multiple roots with different
-            // types of mime types (roots that don't match the requested mime type are automatically hidden)
+            addPath(result, basePath, "Home", R.mipmap.ic_launcher)
+            addPath(result, qqPath, "QQ接收文件", R.mipmap.ic_launcher)
+            addPath(result, timPath, "TIM接收文件", R.mipmap.ic_launcher)
+            addPath(result, wechatPath, "微信接收文件", R.mipmap.ic_launcher)
         }
         // Add SD card directory
         val sdCard = File("/storage/extSdCard")
